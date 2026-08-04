@@ -1,0 +1,9 @@
+# Copy to .dev.vars for local `wrangler dev` to override wrangler.toml [vars].
+# All values here are optional — wrangler.toml already provides sane defaults.
+
+# PROXY_TARGET=8
+# PROXY_CANDIDATES=40
+# CHECK_TIMEOUT_MS=2500
+# CACHE_TTL=300
+# PAC_ROUTE_BYPASS=true
+# LOG_JSON=true
