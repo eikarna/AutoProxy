@@ -1,5 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { setConnectForTesting } from '../src/checker.js';
+import { protocolProxy, HTTP_OK_HEAD } from './helpers.js';
+
+// Fake raw-TCP socket so the health checker runs without workerd. Every
+// candidate "proxy" completes its protocol handshake and forwards the probe.
+setConnectForTesting(() => protocolProxy(HTTP_OK_HEAD));
 
 // Minimal edge-cache stub (Workers' caches.default is not in Node).
 const store = new Map();
@@ -63,6 +69,24 @@ test('unknown path returns the help text', async () => {
   const res = await worker.fetch(new Request('https://autoproxy.example.workers.dev/nope'), env, ctx);
   assert.equal(res.status, 404);
   assert.match(await res.text(), /AutoProxy/);
+});
+
+test('PROXY_TARGET / PROXY_CANDIDATES are capped to Free-Tier-safe limits', async () => {
+  const original = globalThis.fetch;
+  // 40 unique candidates per source — all will pass the fake health check.
+  const lines = Array.from({ length: 40 }, (_, i) => `203.0.113.${i + 1}:8080`).join('\n');
+  globalThis.fetch = async () => new Response(lines, { status: 200 });
+  try {
+    const res = await worker.fetch(
+      new Request('https://autoproxy.example.workers.dev/fresh'),
+      { LOG_JSON: 'false', PROXY_TARGET: '100', PROXY_CANDIDATES: '1000' },
+      ctx,
+    );
+    // 100 requested, capped to 20.
+    assert.equal(res.headers.get('X-Proxy-Count'), '20');
+  } finally {
+    globalThis.fetch = original;
+  }
 });
 
 test('dead sources still yield a DIRECT-only PAC (graceful degradation)', async () => {

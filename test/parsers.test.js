@@ -30,6 +30,22 @@ test('rejects impossible ips and ports', () => {
   assert.deepEqual(out.map((c) => c.hostPort), ['1.2.3.4:8080']);
 });
 
+test('rejects private/loopback/CGNAT/multicast junk IPs', () => {
+  const body = [
+    '10.0.0.1:80',
+    '127.0.0.1:80',
+    '192.168.1.1:80',
+    '172.16.5.5:80',
+    '169.254.10.10:80',
+    '100.64.0.1:80',
+    '224.0.0.1:80',
+    '0.0.0.0:80',
+    '8.8.8.8:80', // only public one — survives
+  ].join('\n');
+  const out = parseSource(src(), body);
+  assert.deepEqual(out.map((c) => c.hostPort), ['8.8.8.8:80']);
+});
+
 test('honours declared socks protocol', () => {
   const out = parseSource(src({ protocol: 'socks4' }), '1.2.3.4:1080');
   assert.equal(out[0].protocol, 'socks4');

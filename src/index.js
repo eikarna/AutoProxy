@@ -11,6 +11,12 @@ const num = (v, d) => {
   return Number.isFinite(n) && n > 0 ? n : d;
 };
 
+// Hard ceilings keep Free-Tier wall-time sane: every candidate check can take
+// up to CHECK_TIMEOUT_MS, and browsers walk the PAC chain in order — so
+// enormous values cost latency without adding reliability.
+const MAX_TARGET = 20;
+const MAX_CANDIDATES = 150;
+
 function enabledSources() {
   const all = Array.isArray(sourcesConfig.sources) ? sourcesConfig.sources : [];
   return all.filter(
@@ -48,8 +54,11 @@ async function fetchSource(source, timeoutMs) {
 
 // Pull candidate proxies from a handful of enabled, supported sources until we
 // have enough distinct candidates to health-check.
-async function gatherCandidates(env, log) {
-  const target = num(env.PROXY_CANDIDATES, 40);
+async function gatherCandidates(env, log, wanted) {
+  const target = Math.min(wanted, MAX_CANDIDATES);
+  if (wanted > MAX_CANDIDATES) {
+    log.info({ event: 'candidates_capped', wanted, cappedTo: target });
+  }
   const sources = shuffle(enabledSources());
   const bag = [];
 
@@ -95,20 +104,26 @@ function cacheKey(request) {
 async function handlePac(request, env, ctx) {
   const log = makeLogger(env.LOG_JSON !== 'false');
   const started = Date.now();
-  const target = num(env.PROXY_TARGET, 8);
+  const target = Math.min(num(env.PROXY_TARGET, 5), MAX_TARGET);
   const timeoutMs = num(env.CHECK_TIMEOUT_MS, 2500);
   const bypass = env.PAC_ROUTE_BYPASS !== 'false';
+  if (num(env.PROXY_TARGET, 5) > MAX_TARGET) {
+    log.info({ event: 'target_capped', wanted: num(env.PROXY_TARGET, 5), cappedTo: target });
+  }
 
-  const candidates = await gatherCandidates(env, log);
+  const candidates = await gatherCandidates(env, log, num(env.PROXY_CANDIDATES, 30));
   log.info({ event: 'candidates_gathered', count: candidates.length });
 
-  const alive = await filterAlive(candidates, { timeoutMs, limit: 12 });
-  const chosen = shuffle(alive).slice(0, target);
+  // filterAlive returns survivors sorted fastest-first (each carries latencyMs).
+  const alive = await filterAlive(candidates, { timeoutMs, limit: 16 });
+  const chosen = alive.slice(0, target);
   log.info({
     event: 'check_complete',
     checked: candidates.length,
     alive: alive.length,
     served: chosen.length,
+    fastestMs: chosen.length ? chosen[0].latencyMs : null,
+    slowestMs: chosen.length ? chosen[chosen.length - 1].latencyMs : null,
     ms: Date.now() - started,
   });
 

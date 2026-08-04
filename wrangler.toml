@@ -1,14 +1,17 @@
 name = "autoproxy"
 main = "src/index.js"
-compatibility_date = "2024-11-01"
+# TCP sockets (cloudflare:sockets) power the real proxy health checks.
+compatibility_date = "2025-06-01"
 
 # Free tier: 100,000 requests/day, 10 ms CPU time per request.
 # No KV/D1/R2 bindings are used — the worker fetches and checks proxies on the fly.
 
 [vars]
-# Tunables (can be overridden with `wrangler secret` or here as plain vars)
-PROXY_TARGET = "100"          # how many live proxies to put in the PAC
-PROXY_CANDIDATES = "1000"     # how many candidate proxies to sample and check per request
-CHECK_TIMEOUT_MS = "2500"   # per-proxy health-check timeout
+# Tunables (can be overridden per-environment or via `wrangler secret`)
+# NOTE: the code caps PROXY_TARGET at 20 and PROXY_CANDIDATES at 150 to keep
+# Free-Tier request wall-time safe (each real check can take up to the timeout).
+PROXY_TARGET = "100"          # live proxies for the PAC, fastest first (capped at 20)
+PROXY_CANDIDATES = "1000"     # candidates to sample & health-check per refresh (capped at 150)
+CHECK_TIMEOUT_MS = "2500"   # per-proxy health-check timeout (handshake + probe)
 CACHE_TTL = "300"           # seconds edge cache keeps one pooled PAC response
 PAC_ROUTE_BYPASS = "true"   # bypass proxy for plain hostnames, localhost, and private IPs

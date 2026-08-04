@@ -12,6 +12,20 @@ function isPlausibleIp(octets) {
   return octets.every((o) => +o >= 0 && +o <= 255);
 }
 
+// Public proxy lists are littered with junk addresses that can never work.
+// Drop private/loopback/link-local/CGNAT/multicast ranges up front.
+function isUsablePublicIp([a, b]) {
+  if (a === 0) return false; // 0.0.0.0/8 "this network"
+  if (a === 10) return false; // 10.0.0.0/8 private
+  if (a === 127) return false; // loopback
+  if (a === 100 && b >= 64 && b <= 127) return false; // 100.64.0.0/10 CGNAT
+  if (a === 169 && b === 254) return false; // link-local
+  if (a === 172 && b >= 16 && b <= 31) return false; // 172.16.0.0/12 private
+  if (a === 192 && b === 168) return false; // 192.168.0.0/16 private
+  if (a >= 224) return false; // multicast + reserved
+  return true;
+}
+
 function makeCandidate(ip, port, protocol) {
   const p = +port;
   if (!ip || !(p > 0 && p <= 65535)) return null;
@@ -19,6 +33,7 @@ function makeCandidate(ip, port, protocol) {
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) return null;
   const octets = ip.split('.').map(Number);
   if (octets.length !== 4 || !isPlausibleIp(octets)) return null;
+  if (!isUsablePublicIp(octets)) return null;
   return { host: ip, port: p, protocol, hostPort: `${ip}:${p}` };
 }
 
