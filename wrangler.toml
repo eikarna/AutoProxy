@@ -7,8 +7,8 @@ compatibility_date = "2024-11-01"
 
 [vars]
 # Tunables (can be overridden with `wrangler secret` or here as plain vars)
-PROXY_TARGET = "8"          # how many live proxies to put in the PAC
-PROXY_CANDIDATES = "40"     # how many candidate proxies to sample and check per request
+PROXY_TARGET = "100"          # how many live proxies to put in the PAC
+PROXY_CANDIDATES = "1000"     # how many candidate proxies to sample and check per request
 CHECK_TIMEOUT_MS = "2500"   # per-proxy health-check timeout
 CACHE_TTL = "300"           # seconds edge cache keeps one pooled PAC response
 PAC_ROUTE_BYPASS = "true"   # bypass proxy for plain hostnames, localhost, and private IPs
