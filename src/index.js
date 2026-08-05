@@ -17,10 +17,20 @@ const num = (v, d) => {
 const MAX_TARGET = 20;
 const MAX_CANDIDATES = 150;
 
+// Source types that yield usable forward proxies. `tor_exit` is excluded: those
+// are Tor exit relays, not HTTP/SOCKS proxies, so they can't serve a PAC and
+// would otherwise flood the candidate pool (one list returned 3000+ of them).
+const USABLE_SOURCE_TYPES = ['github_raw', 'generic_text', 'subscription_base64'];
+
 function enabledSources() {
   const all = Array.isArray(sourcesConfig.sources) ? sourcesConfig.sources : [];
   return all.filter(
-    (s) => s && s.enabled && s.url && SUPPORTED_PROTOCOLS.includes(s.protocol),
+    (s) =>
+      s &&
+      s.enabled &&
+      s.url &&
+      SUPPORTED_PROTOCOLS.includes(s.protocol) &&
+      USABLE_SOURCE_TYPES.includes(s.type),
   );
 }
 
@@ -44,11 +54,17 @@ async function fetchSource(source, timeoutMs) {
       headers: { 'User-Agent': 'AutoProxy/1.0 (+github.com)' },
     });
     clearTimeout(t);
-    if (!res.ok) return null;
-    const text = await res.text();
-    return parseSource(source, text);
-  } catch {
-    return null;
+    if (!res.ok) return { source, ok: false, error: `HTTP ${res.status}`, bytes: 0, cands: [] };
+    let text = await res.text();
+    // Bound CPU on huge lists (some hold 10k+ proxies): we only ever take a few
+    // dozen candidates per source, so parsing past ~128 KB is wasted work.
+    // (Base64 subscriptions need the whole body to decode — never truncate those.)
+    if (source.type !== 'subscription_base64' && text.length > 128 * 1024) {
+      text = text.slice(0, 128 * 1024);
+    }
+    return { source, ok: true, bytes: text.length, cands: parseSource(source, text) };
+  } catch (e) {
+    return { source, ok: false, error: String((e && e.message) || e), bytes: 0, cands: [] };
   }
 }
 
@@ -62,19 +78,24 @@ async function gatherCandidates(env, log, wanted) {
   const sources = shuffle(enabledSources());
   const bag = [];
 
+  // Cap any single source so one giant list can't dominate the pool and starve
+  // the others (a single source once supplied 95%+ of candidates).
+  const PER_SOURCE_CAP = Math.max(8, Math.floor(target / 4));
+
   // Fetch a few sources at a time to stay responsive.
   const window = 4;
   for (let i = 0; i < sources.length && bag.length < target; i += window) {
     const slice = sources.slice(i, i + window);
     const results = await Promise.all(slice.map((s) => fetchSource(s, 3500)));
     for (let k = 0; k < results.length; k++) {
-      const cands = results[k];
-      if (!cands || cands.length === 0) continue;
-      bag.push(...cands);
+      const r = results[k];
+      if (!r.ok || r.cands.length === 0) continue;
+      bag.push(...r.cands.slice(0, PER_SOURCE_CAP));
       log.info({
         event: 'source_fetched',
         source: slice[k].name,
-        candidates: cands.length,
+        candidates: r.cands.length,
+        taken: Math.min(r.cands.length, PER_SOURCE_CAP),
       });
     }
   }
@@ -159,6 +180,48 @@ async function handleStatus() {
   });
 }
 
+// Live pipeline diagnostics: fetch every usable source, sample candidates,
+// run real checks against a sample, and report it all as JSON. Never cached.
+async function handleDebug(env) {
+  const started = Date.now();
+  const timeoutMs = num(env.CHECK_TIMEOUT_MS, 2500);
+  const sources = enabledSources();
+  const perSource = [];
+  const sample = [];
+
+  const window = 4;
+  for (let i = 0; i < sources.length; i += window) {
+    const slice = sources.slice(i, i + window);
+    const results = await Promise.all(slice.map((s) => fetchSource(s, 3500)));
+    for (const r of results) {
+      perSource.push({
+        name: r.source.name,
+        type: r.source.type,
+        protocol: r.source.protocol,
+        ok: r.ok,
+        error: r.error ?? null,
+        bytes: r.bytes,
+        candidates: r.cands.length,
+      });
+      sample.push(...r.cands.slice(0, 10));
+    }
+  }
+
+  const candidates = dedupe(sample).slice(0, 25);
+  const alive = await filterAlive(candidates, { timeoutMs, limit: 16 });
+
+  const body = {
+    ok: true,
+    ms: Date.now() - started,
+    sources: perSource,
+    checks: { sampled: candidates.length, alive: alive.length, timeoutMs },
+    alive: alive.map((a) => `${a.protocol} ${a.hostPort} (${a.latencyMs}ms)`),
+  };
+  return new Response(JSON.stringify(body, null, 2), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
 const HELP = `AutoProxy
 =========
 Serves a PAC (Proxy Auto-Config) profile built from freshly health-checked public proxies.
@@ -167,6 +230,7 @@ GET /           -> PAC file (application/x-ns-proxy-autoconfig), edge-cached
 GET /proxy.pac  -> alias of /
 GET /fresh      -> bypass edge cache and regenerate now
 GET /status     -> JSON health info
+GET /debug      -> live pipeline diagnostics (sources, candidates, check results)
 
 Point your browser/OS "Automatic proxy configuration URL" at https://<your-worker>.workers.dev/
 `;
@@ -188,6 +252,8 @@ export default {
     }
 
     if (path === '/status') return handleStatus();
+
+    if (path === '/debug') return handleDebug(env);
 
     return new Response(HELP, {
       status: 404,

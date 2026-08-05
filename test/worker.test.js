@@ -65,6 +65,19 @@ test('GET /status reports source counts', async () => {
   assert.ok(body.sources.total >= body.sources.enabled);
 });
 
+test('GET /debug reports per-source results and live checks', async () => {
+  const res = await worker.fetch(new Request('https://autoproxy.example.workers.dev/debug'), env, ctx);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.ok, true);
+  assert.ok(Array.isArray(body.sources) && body.sources.length >= 1);
+  // tor_exit sources must never appear in the usable pool.
+  assert.ok(!body.sources.some((s) => s.type === 'tor_exit'));
+  assert.ok(body.checks.sampled >= 1);
+  assert.ok(body.checks.alive >= 1); // fake socket lets every sample pass
+  assert.ok(Array.isArray(body.alive));
+});
+
 test('unknown path returns the help text', async () => {
   const res = await worker.fetch(new Request('https://autoproxy.example.workers.dev/nope'), env, ctx);
   assert.equal(res.status, 404);

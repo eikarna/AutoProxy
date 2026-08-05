@@ -34,6 +34,7 @@ Point your browser / OS *Automatic proxy configuration URL* (WPAD/PAC setting) a
 Health/telemetry:
 
 - `GET /status` — JSON `{ ok, sources: { enabled, total } }`
+- `GET /debug` — live pipeline diagnostics: per-source fetch results, candidate counts, and real check outcomes (never cached)
 
 The response has the proper PAC content type (`application/x-ns-proxy-autoconfig`), so browsers accept it directly.
 
@@ -52,7 +53,11 @@ Tunables in `wrangler.toml` `[vars]` (no rebuild needed — change and redeploy)
 
 \* **Capped in code:** `PROXY_TARGET` at **20** and `PROXY_CANDIDATES` at **150**. Every real health check can take up to `CHECK_TIMEOUT_MS`, so unbounded values would blow past Free-Tier wall-time before answering. Also note the PAC chain is walked *in order* by the browser — all entries are pre-verified alive, so entries beyond the first few only kick in when earlier ones die; more entries mostly adds PAC weight, not reliability. **5–10 is the sweet spot.**
 
-To manage sources, edit `proxy-sources.json` (each entry: `id, url, type, protocol, enabled, name, validated`). Only entries with `"enabled": true` and a supported protocol are used. Set other sources to `true` to widen the pool.
+To manage sources, edit `proxy-sources.json` (each entry: `id, url, type, protocol, enabled, name, validated`). Only entries with `"enabled": true`, a supported protocol, and a usable type are used. Notes:
+
+- `tor_exit` sources are **always skipped** — Tor exit relays are not forward proxies and would flood the candidate pool.
+- Bodies that look like HTML are skipped (some `generic_text` URLs point at GitHub repo *pages* instead of raw files — they can never yield `ip:port` lines). Point such sources at raw file URLs instead.
+- One giant list can't dominate: each source contributes at most `PROXY_CANDIDATES / 4` candidates to the pool.
 
 ## Why this fits the Free Tier
 

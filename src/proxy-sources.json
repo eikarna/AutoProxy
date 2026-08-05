@@ -15,7 +15,7 @@
       "url": "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/refs/heads/master/http.txt",
       "type": "github_raw",
       "protocol": "http",
-      "enabled": false,
+      "enabled": true,
       "name": "TheSpeedX-http",
       "validated": true
     },
@@ -24,7 +24,7 @@
       "url": "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/refs/heads/master/socks4.txt",
       "type": "github_raw",
       "protocol": "socks4",
-      "enabled": false,
+      "enabled": true,
       "name": "TheSpeedX-socks4",
       "validated": true
     },
@@ -33,7 +33,7 @@
       "url": "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/refs/heads/master/socks5.txt",
       "type": "github_raw",
       "protocol": "socks5h",
-      "enabled": false,
+      "enabled": true,
       "name": "TheSpeedX-socks5",
       "validated": true
     },
@@ -78,7 +78,7 @@
       "url": "https://raw.githubusercontent.com/proxifly/free-proxy-list/main/proxies/protocols/http/data.txt",
       "type": "github_raw",
       "protocol": "http",
-      "enabled": false,
+      "enabled": true,
       "name": "proxifly-http",
       "validated": true
     },
@@ -150,7 +150,7 @@
       "url": "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt",
       "type": "github_raw",
       "protocol": "http",
-      "enabled": false,
+      "enabled": true,
       "name": "monosans-http",
       "validated": true
     },
@@ -168,7 +168,7 @@
       "url": "https://raw.githubusercontent.com/zloi-user/hideip.me/main/http.txt",
       "type": "github_raw",
       "protocol": "http",
-      "enabled": false,
+      "enabled": true,
       "name": "zloi-user-hideip",
       "validated": true
     },
@@ -303,7 +303,7 @@
       "url": "https://raw.githubusercontent.com/vakhov/fresh-proxy-list/master/http.txt",
       "type": "github_raw",
       "protocol": "http",
-      "enabled": false,
+      "enabled": true,
       "name": "vakhov-http",
       "validated": true
     },
@@ -564,7 +564,7 @@
       "url": "https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-http.txt",
       "type": "github_raw",
       "protocol": "http",
-      "enabled": false,
+      "enabled": true,
       "name": "jetkai-http",
       "validated": true
     },
@@ -591,7 +591,7 @@
       "url": "https://raw.githubusercontent.com/jetkai/proxy-list/main/online-proxies/txt/proxies-socks5.txt",
       "type": "github_raw",
       "protocol": "socks5h",
-      "enabled": false,
+      "enabled": true,
       "name": "jetkai-socks5",
       "validated": true
     },

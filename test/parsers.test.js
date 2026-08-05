@@ -51,6 +51,11 @@ test('honours declared socks protocol', () => {
   assert.equal(out[0].protocol, 'socks4');
 });
 
+test('skips HTML bodies (GitHub repo pages served as generic_text)', () => {
+  const html = '<!DOCTYPE html>\n<html><body>1.2.3.4:8080</body></html>';
+  assert.deepEqual(parseSource(src({ type: 'generic_text' }), html), []);
+});
+
 test('handles comma-separated lists', () => {
   const out = parseSource(src(), '1.2.3.4:80, 5.6.7.8:8080,9.10.11.12:3128');
   assert.equal(out.length, 3);

@@ -52,6 +52,11 @@ function mapProtocol(sourceProtocol, line) {
 // URIs like trojan://, vless://, vmess://, ss:// can't be PAC entries, so we
 // skip them by design (PAC only understands PROXY/SOCKS).
 
+function looksLikeHtml(body) {
+  const head = body.slice(0, 512).toLowerCase();
+  return head.includes('<!doctype html') || head.includes('<html');
+}
+
 // Decode a base64 subscription body: each decoded line is a scheme URI or ip:port.
 function parseSubscription(text, sourceProtocol) {
   let decoded = '';
@@ -96,7 +101,10 @@ function parsePlainLines(lines, sourceProtocol) {
 
 // Entry: parse one source body into candidate objects based on the source's type.
 export function parseSource(source, body) {
-  if(!body) return [];
+  if (!body) return [];
+  // Some "generic_text" URLs point at GitHub repo *pages* instead of raw files;
+  // they come back as HTML and can never contain usable ip:port lines.
+  if (looksLikeHtml(body)) return [];
   const protocol = SUPPORTED_PROTOCOLS.includes(source.protocol) ? source.protocol : null;
   switch (source.type) {
     case 'subscription_base64':
